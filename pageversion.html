@@ -289,6 +289,7 @@
     <div class="container">
         <section class="input-section">
             <h2>贷款参数</h2>
+            <!-- 在贷款参数表单中添加公积金账户余额输入 -->
             <form id="loan-form">
                 <div class="form-group">
                     <label for="loan-amount">贷款总额(元)</label>
@@ -305,6 +306,10 @@
                 <div class="form-group">
                     <label for="housing-fund">月缴公积金(元)</label>
                     <input type="number" id="housing-fund" value="2000" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="housing-fund-balance">公积金账户余额(元)</label>
+                    <input type="number" id="housing-fund-balance" value="100000" min="0">
                 </div>
                 
                 <button type="button" id="calculate-btn">计算还款</button>
@@ -386,6 +391,7 @@
             <div id="equal-payment" class="tab-content">
                 <h2>等额本息还款计划</h2>
                 <div class="table-responsive">
+                    <!-- 修改表格表头，添加公积金余额列 -->
                     <table id="equal-payment-table">
                         <thead>
                             <tr>
@@ -397,6 +403,7 @@
                                 <th>公积金(元)</th>
                                 <th>实付(元)</th>
                                 <th>剩余本金(元)</th>
+                                <th>公积金余额(元)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -410,6 +417,7 @@
             <div id="equal-principal" class="tab-content">
                 <h2>等额本金还款计划</h2>
                 <div class="table-responsive">
+                    <!-- 修改表格表头，添加公积金余额列 -->
                     <table id="equal-principal-table">
                         <thead>
                             <tr>
@@ -421,6 +429,7 @@
                                 <th>公积金(元)</th>
                                 <th>实付(元)</th>
                                 <th>剩余本金(元)</th>
+                                <th>公积金余额(元)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -456,6 +465,7 @@
                 
                 <div class="table-responsive" style="display:none" id="prepayment-table-container">
                     <h3>提前还款后新还款计划</h3>
+                    <!-- 修改表格表头，添加公积金余额列 -->
                     <table id="prepayment-table">
                         <thead>
                             <tr>
@@ -467,6 +477,7 @@
                                 <th>公积金(元)</th>
                                 <th>实付(元)</th>
                                 <th>剩余本金(元)</th>
+                                <th>公积金余额(元)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -493,25 +504,29 @@
         }
         
         // 获取贷款参数
+        // 修改获取贷款参数函数
         function getLoanParams() {
             const loanAmount = parseFloat(document.getElementById('loan-amount').value);
             const loanTerm = parseFloat(document.getElementById('loan-term').value);
             const interestRate = parseFloat(document.getElementById('interest-rate').value) / 100;
             const housingFund = parseFloat(document.getElementById('housing-fund').value);
+            const housingFundBalance = parseFloat(document.getElementById('housing-fund-balance').value);
             
             return {
                 loanAmount,
                 loanTerm,
                 interestRate,
                 housingFund,
+                housingFundBalance,
                 months: loanTerm * 12,
                 monthlyRate: interestRate / 12
             };
         }
         
         // 计算等额本息还款计划
+        // 修改等额本息计算函数
         function calculateEqualPayment(params) {
-            const { loanAmount, months, monthlyRate, housingFund } = params;
+            const { loanAmount, months, monthlyRate, housingFund, housingFundBalance } = params;
             
             // 等额本息月供计算公式
             const monthlyPayment = loanAmount * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
@@ -519,6 +534,7 @@
             let plan = [];
             let remainingPrincipal = loanAmount;
             let totalInterest = 0;
+            let currentHousingFundBalance = housingFundBalance; // 当前公积金余额
             
             const now = new Date();
             const currentMonth = now.getMonth();
@@ -539,8 +555,16 @@
                 remainingPrincipal -= principal;
                 if (remainingPrincipal < 0.01) remainingPrincipal = 0; // 处理浮点数精度问题
                 
+                // 计算本月可用公积金（月缴公积金 + 账户余额，但不能超过月供）
+                const availableHousingFund = Math.min(housingFund + currentHousingFundBalance, monthlyPayment);
+                const usedHousingFund = Math.min(availableHousingFund, monthlyPayment);
+                
                 // 计算实际现金支出
-                const actualPayment = Math.max(0, monthlyPayment - housingFund);
+                const actualPayment = Math.max(0, monthlyPayment - usedHousingFund);
+                
+                // 更新公积金账户余额
+                const housingFundUsedFromBalance = Math.max(0, usedHousingFund - housingFund);
+                currentHousingFundBalance = Math.max(0, currentHousingFundBalance - housingFundUsedFromBalance);
                 
                 // 累计利息
                 totalInterest += interest;
@@ -551,9 +575,10 @@
                     payment: monthlyPayment,
                     principal: principal,
                     interest: interest,
-                    housingFund: Math.min(housingFund, monthlyPayment), // 使用的住房公积金不能超过月供
+                    housingFund: usedHousingFund,
                     actualPayment: actualPayment,
-                    remainingPrincipal: remainingPrincipal
+                    remainingPrincipal: remainingPrincipal,
+                    housingFundBalance: currentHousingFundBalance
                 });
             }
             
@@ -566,8 +591,9 @@
         }
         
         // 计算等额本金还款计划
+        // 修改等额本金计算函数
         function calculateEqualPrincipal(params) {
-            const { loanAmount, months, monthlyRate, housingFund } = params;
+            const { loanAmount, months, monthlyRate, housingFund, housingFundBalance } = params;
             
             // 每月归还本金金额
             const monthlyPrincipal = loanAmount / months;
@@ -575,6 +601,7 @@
             let plan = [];
             let remainingPrincipal = loanAmount;
             let totalInterest = 0;
+            let currentHousingFundBalance = housingFundBalance; // 当前公积金余额
             
             const now = new Date();
             const currentMonth = now.getMonth();
@@ -595,8 +622,16 @@
                 remainingPrincipal -= monthlyPrincipal;
                 if (remainingPrincipal < 0.01) remainingPrincipal = 0; // 处理浮点数精度问题
                 
+                // 计算本月可用公积金（月缴公积金 + 账户余额，但不能超过月供）
+                const availableHousingFund = Math.min(housingFund + currentHousingFundBalance, monthlyPayment);
+                const usedHousingFund = Math.min(availableHousingFund, monthlyPayment);
+                
                 // 计算实际现金支出
-                const actualPayment = Math.max(0, monthlyPayment - housingFund);
+                const actualPayment = Math.max(0, monthlyPayment - usedHousingFund);
+                
+                // 更新公积金账户余额
+                const housingFundUsedFromBalance = Math.max(0, usedHousingFund - housingFund);
+                currentHousingFundBalance = Math.max(0, currentHousingFundBalance - housingFundUsedFromBalance);
                 
                 // 累计利息
                 totalInterest += interest;
@@ -607,9 +642,10 @@
                     payment: monthlyPayment,
                     principal: monthlyPrincipal,
                     interest: interest,
-                    housingFund: Math.min(housingFund, monthlyPayment), // 使用的住房公积金不能超过月供
+                    housingFund: usedHousingFund,
                     actualPayment: actualPayment,
-                    remainingPrincipal: remainingPrincipal
+                    remainingPrincipal: remainingPrincipal,
+                    housingFundBalance: currentHousingFundBalance
                 });
             }
             
@@ -991,6 +1027,7 @@
         }
         
         // 根据页码渲染分页表格
+        // 修改表格渲染函数
         function renderPaginatedTable(tableId, data, page, paginationId) {
             const itemsPerPage = 12;
             const totalPages = Math.ceil(data.length / itemsPerPage);
@@ -1014,6 +1051,7 @@
                     <td>${formatNumber(item.housingFund)}</td>
                     <td>${formatNumber(item.actualPayment)}</td>
                     <td>${formatNumber(item.remainingPrincipal)}</td>
+                    <td>${formatNumber(item.housingFundBalance)}</td>
                 `;
                 
                 tableBody.appendChild(row);
@@ -1074,6 +1112,7 @@
         }
         
         // 导出还款计划为CSV
+        // 修改CSV导出函数
         function exportCSV() {
             // 获取当前被选中的贷款方式
             const method = document.querySelector('.tab.active').dataset.tab;
@@ -1097,11 +1136,11 @@
             }
             
             // CSV表头
-            let csvContent = "期数,还款日期,月供(元),本金(元),利息(元),公积金(元),实付(元),剩余本金(元)\n";
+            let csvContent = "期数,还款日期,月供(元),本金(元),利息(元),公积金(元),实付(元),剩余本金(元),公积金余额(元)\n";
             
             // 添加数据行
             data.forEach(item => {
-                csvContent += `${item.month},${item.date},${item.payment.toFixed(2)},${item.principal.toFixed(2)},${item.interest.toFixed(2)},${item.housingFund.toFixed(2)},${item.actualPayment.toFixed(2)},${item.remainingPrincipal.toFixed(2)}\n`;
+                csvContent += `${item.month},${item.date},${item.payment.toFixed(2)},${item.principal.toFixed(2)},${item.interest.toFixed(2)},${item.housingFund.toFixed(2)},${item.actualPayment.toFixed(2)},${item.remainingPrincipal.toFixed(2)},${item.housingFundBalance.toFixed(2)}\n`;
             });
             
             // 创建Blob并下载
