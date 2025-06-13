@@ -57,7 +57,7 @@
         }
         
         .result-section {
-            flex: 2;
+            flex: 2.4;
             min-width: 600px;
             background: white;
             padding: 20px;
@@ -219,37 +219,70 @@
             gap: 15px;
             margin-top: 15px;
         }
-        .comparison-section {
-            margin-top: 30px;
+        
+        /* 在现有CSS中添加多次提前还款样式 */
+        .multiple-prepayment-section {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
         
-        .checkbox-group {
+        .prepayment-list {
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .prepayment-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: var(--shadow);
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            margin-top: 10px;
         }
         
-        .checkbox-group input {
-            width: auto;
-            margin-right: 10px;
+        .prepayment-info {
+            flex: 1;
         }
         
-        .pagination {
+        .prepayment-form {
             display: flex;
-            justify-content: center;
-            margin-top: 20px;
             gap: 10px;
+            align-items: end;
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            flex-wrap: wrap;
         }
         
-        .pagination button {
+        .prepayment-form .form-group {
+            margin-bottom: 0;
+            min-width: 120px;
+            flex: 1;
+        }
+        
+        .delete-btn {
+            background-color: var(--accent-color);
             padding: 5px 10px;
-            background: var(--light-gray);
-            color: var(--secondary-color);
+            font-size: 14px;
+            margin-left: 10px;
         }
         
-        .pagination button.active {
-            background: var(--primary-color);
-            color: white;
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .clear-btn {
+            background-color: #e67e22;
+        }
+        
+        .clear-btn:hover {
+            background-color: #d35400;
         }
         
         @media (max-width: 768px) {
@@ -275,6 +308,15 @@
             
             .prepayment-options {
                 flex-direction: column;
+            }
+            
+            .prepayment-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .prepayment-form .form-group {
+                min-width: auto;
             }
         }
     </style>
@@ -338,6 +380,38 @@
                 </div>
                 <button type="button" id="prepayment-btn">计算提前还款</button>
             </div>
+
+            <!-- 在提前还款部分后面添加多次提前还款部分 -->
+            <div class="multiple-prepayment-section">
+                <h2>多次提前还款</h2>
+                <p>可以添加多个提前还款计划，系统会按时间顺序计算累积效果</p>
+                
+                <div class="prepayment-form">
+                    <div class="form-group">
+                        <label for="multi-prepayment-month">第几个月</label>
+                        <input type="number" id="multi-prepayment-month" value="12" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="multi-prepayment-amount">金额(元)</label>
+                        <input type="number" id="multi-prepayment-amount" value="100000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="multi-prepayment-option">方式</label>
+                        <select id="multi-prepayment-option">
+                            <option value="reduce-term">缩短期限</option>
+                            <option value="reduce-payment">减少月供</option>
+                        </select>
+                    </div>
+                    <button type="button" id="add-prepayment-btn">添加</button>
+                </div>
+                
+                <div class="prepayment-list" id="prepayment-list">
+                    <p>暂无提前还款计划</p>
+                </div>
+                
+                <button type="button" id="calculate-multiple-prepayment-btn">计算多次提前还款</button>
+                <button type="button" id="clear-prepayments-btn" class="clear-btn">清空所有</button>
+            </div>
         </section>
 
         <section class="result-section">
@@ -346,7 +420,8 @@
                 <div class="tab" data-tab="equal-payment">等额本息</div>
                 <div class="tab" data-tab="equal-principal">等额本金</div>
                 <div class="tab" data-tab="charts">图表分析</div>
-                <div class="tab" data-tab="prepayment">提前还款</div>
+                <div class="tab" data-tab="prepayment">单次提前还款</div>
+                <div class="tab" data-tab="multiple-prepayment">多次提前还款</div>
             </div>
 
             <div id="summary" class="tab-content active">
@@ -481,6 +556,41 @@
                 </div>
                 <div id="prepayment-pagination" class="pagination"></div>
             </div>
+
+            <!-- 添加多次提前还款内容区域 -->
+            <div id="multiple-prepayment" class="tab-content">
+                <h2>多次提前还款分析</h2>
+                <div id="multiple-prepayment-result">
+                    <p>请在左侧添加多个提前还款计划并计算</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="multiple-prepayment-chart"></canvas>
+                </div>
+                
+                <div class="table-responsive" style="display:none" id="multiple-prepayment-table-container">
+                    <h3>多次提前还款后新还款计划</h3>
+                    <table id="multiple-prepayment-table">
+                        <thead>
+                            <tr>
+                                <th>期数</th>
+                                <th>还款日期</th>
+                                <th>月供(元)</th>
+                                <th>本金(元)</th>
+                                <th>利息(元)</th>
+                                <th>实付(元)</th>
+                                <th>剩余本金(元)</th>
+                                <th>公积金余额(元)</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 表格内容将通过JavaScript动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="multiple-prepayment-pagination" class="pagination"></div>
+            </div>
         </section>
     </div>
 
@@ -491,6 +601,10 @@
         let equalPrincipalPlan = [];
         let prepaymentPlan = [];
         let currentChart = null;
+        
+        // 在现有全局变量中添加
+        let multiplePrepaymentPlan = [];
+        let prepaymentList = []; // 存储多次提前还款计划
         
         // 格式化数字显示
         function formatNumber(num) {
@@ -1477,9 +1591,465 @@
                 });
             });
             
+            // 添加提前还款按钮点击事件
+            document.getElementById('add-prepayment-btn').addEventListener('click', addPrepaymentToList);
+            
+            // 计算多次提前还款按钮点击事件
+            document.getElementById('calculate-multiple-prepayment-btn').addEventListener('click', calculateMultiplePrepayment);
+            
+            // 清空所有提前还款按钮点击事件
+            document.getElementById('clear-prepayments-btn').addEventListener('click', clearAllPrepayments);
+            
             // 初始计算
             calculateLoan();
         });
+        
+        // 添加提前还款到列表
+        function addPrepaymentToList() {
+            const month = parseInt(document.getElementById('multi-prepayment-month').value);
+            const amount = parseFloat(document.getElementById('multi-prepayment-amount').value);
+            const option = document.getElementById('multi-prepayment-option').value;
+            
+            // 验证输入
+            if (month < 1 || amount <= 0) {
+                alert('请输入有效的月份和金额');
+                return;
+            }
+            
+            // 检查是否已存在相同月份的提前还款
+            if (prepaymentList.some(item => item.month === month)) {
+                alert('该月份已有提前还款计划，请选择其他月份');
+                return;
+            }
+            
+            // 添加到列表
+            prepaymentList.push({
+                month: month,
+                amount: amount,
+                option: option,
+                id: Date.now() // 简单的唯一ID
+            });
+            
+            // 按月份排序
+            prepaymentList.sort((a, b) => a.month - b.month);
+            
+            // 更新显示
+            updatePrepaymentListDisplay();
+            
+            // 清空输入框
+            document.getElementById('multi-prepayment-month').value = '';
+            document.getElementById('multi-prepayment-amount').value = '';
+        }
+        
+        // 更新提前还款列表显示
+        function updatePrepaymentListDisplay() {
+            const listContainer = document.getElementById('prepayment-list');
+            
+            if (prepaymentList.length === 0) {
+                listContainer.innerHTML = '<p>暂无提前还款计划</p>';
+                return;
+            }
+            
+            listContainer.innerHTML = prepaymentList.map(item => `
+                <div class="prepayment-item">
+                    <div class="prepayment-info">
+                        <strong>第${item.month}个月</strong> - 
+                        提前还款 <strong>${formatNumber(item.amount)}元</strong> - 
+                        <em>${item.option === 'reduce-term' ? '缩短期限' : '减少月供'}</em>
+                    </div>
+                    <button class="delete-btn" onclick="removePrepayment(${item.id})">删除</button>
+                </div>
+            `).join('');
+        }
+        
+        // 删除提前还款
+        function removePrepayment(id) {
+            prepaymentList = prepaymentList.filter(item => item.id !== id);
+            updatePrepaymentListDisplay();
+        }
+        
+        // 清空所有提前还款
+        function clearAllPrepayments() {
+            if (prepaymentList.length > 0 && confirm('确认清空所有提前还款计划吗？')) {
+                prepaymentList = [];
+                updatePrepaymentListDisplay();
+            }
+        }
+        
+        // 计算单次提前还款（重构为独立函数）
+        function calculateSinglePrepayment(originalPlan, prepaymentMonth, prepaymentAmount, option, params) {
+            // 提取已经还款的部分
+            const paidPortion = originalPlan.slice(0, prepaymentMonth);
+            
+            // 计算剩余本金
+            let remainingPrincipal = paidPortion[paidPortion.length - 1].remainingPrincipal - prepaymentAmount;
+            
+            // 如果剩余本金为0，则提前结清
+            if (remainingPrincipal <= 0) {
+                const newPlan = [...paidPortion];
+                newPlan[newPlan.length - 1].payment += remainingPrincipal + prepaymentAmount;
+                newPlan[newPlan.length - 1].principal += remainingPrincipal + prepaymentAmount;
+                newPlan[newPlan.length - 1].remainingPrincipal = 0;
+                return newPlan;
+            }
+            
+            // 添加提前还款那个月的特殊记录
+            paidPortion[paidPortion.length - 1].payment += prepaymentAmount;
+            paidPortion[paidPortion.length - 1].principal += prepaymentAmount;
+            paidPortion[paidPortion.length - 1].remainingPrincipal = remainingPrincipal;
+            
+            let newRemainingMonths;
+            let newMonthlyPayment;
+            
+            // 根据选择计算新的还款计划
+            if (option === 'reduce-term') {
+                // 缩短贷款期限，保持月供不变（等额本息）
+                const monthlyRate = params.monthlyRate;
+                newMonthlyPayment = originalPlan[0].payment; // 保持月供不变
+                
+                // 计算新的期限
+                newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / (newMonthlyPayment - remainingPrincipal * monthlyRate)) / Math.log(1 + monthlyRate));
+                
+                // 使用计算得到的新期限重新计算每月还款
+                const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
+                const newPlan = calculateEqualPayment(tempParams).plan;
+                
+                // 调整新计划的月份编号和日期
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = prepaymentMonth + i + 1;
+                    
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
+                }
+                
+                // 合并两部分还款计划
+                return [...paidPortion, ...newPlan];
+            } else {
+                // 减少月供，保持还款期限不变
+                const remainingMonths = params.months - prepaymentMonth;
+                
+                // 等额本息情况
+                const monthlyRate = params.monthlyRate;
+                newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+                
+                // 使用剩余金额和剩余期限重新计算每月还款
+                const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths };
+                const newPlan = calculateEqualPayment(tempParams).plan;
+                
+                // 调整新计划的月份编号和日期
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = prepaymentMonth + i + 1;
+                    
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
+                }
+                
+                // 合并两部分还款计划
+                return [...paidPortion, ...newPlan];
+            }
+        }
+        
+        // 计算多次提前还款
+        function calculateMultiplePrepayment() {
+            if (prepaymentList.length === 0) {
+                alert('请先添加至少一个提前还款计划');
+                return;
+            }
+            
+            const params = getLoanParams();
+            let currentPlan = [...equalPaymentPlan]; // 从等额本息开始
+            const allPrepayments = [...prepaymentList].sort((a, b) => a.month - b.month);
+            
+            // 验证所有提前还款计划是否合理
+            let adjustedMonthOffset = 0; // 记录因为提前还清导致的月份偏移
+            
+            for (let i = 0; i < allPrepayments.length; i++) {
+                const prepay = allPrepayments[i];
+                const adjustedMonth = prepay.month - adjustedMonthOffset;
+                
+                // 检查调整后的月份是否超出当前计划长度
+                if (adjustedMonth > currentPlan.length) {
+                    alert(`第${prepay.month}个月的提前还款计划无效：此时贷款已结清`);
+                    return;
+                }
+                
+                // 检查提前还款金额是否超过剩余本金
+                const availablePrincipal = currentPlan[adjustedMonth - 1].remainingPrincipal;
+                if (prepay.amount > availablePrincipal) {
+                    alert(`第${prepay.month}个月的提前还款金额(${formatNumber(prepay.amount)}元)超过剩余本金(${formatNumber(availablePrincipal)}元)`);
+                    return;
+                }
+                
+                // 计算当前提前还款的效果
+                const newPlan = calculateSinglePrepayment(currentPlan, adjustedMonth, prepay.amount, prepay.option, params);
+                
+                // 记录提前还款信息到计划中
+                if (newPlan[adjustedMonth - 1]) {
+                    newPlan[adjustedMonth - 1].prepaymentNote = `提前还款${formatNumber(prepay.amount)}元(${prepay.option === 'reduce-term' ? '缩短期限' : '减少月供'})`;
+                }
+                
+                // 更新月份偏移
+                const originalLength = currentPlan.length;
+                const newLength = newPlan.length;
+                adjustedMonthOffset += (originalLength - newLength);
+                
+                currentPlan = newPlan;
+            }
+            
+            multiplePrepaymentPlan = currentPlan;
+            displayMultiplePrepaymentResults(multiplePrepaymentPlan, equalPaymentPlan, allPrepayments);
+        }
+        
+        // 显示多次提前还款结果
+        function displayMultiplePrepaymentResults(newPlan, originalPlan, prepayments) {
+            // 计算原计划总利息
+            let originalTotalInterest = 0;
+            originalPlan.forEach(item => originalTotalInterest += item.interest);
+            
+            // 计算新计划总利息
+            let newTotalInterest = 0;
+            newPlan.forEach(item => newTotalInterest += item.interest);
+            
+            // 计算提前还款总额
+            const totalPrepaymentAmount = prepayments.reduce((sum, item) => sum + item.amount, 0);
+            
+            // 计算节省的利息
+            const savedInterest = originalTotalInterest - newTotalInterest;
+            
+            // 计算新的还款期限
+            const newTerm = newPlan.length;
+            const originalTerm = originalPlan.length;
+            
+            // 显示多次提前还款结果
+            const resultDiv = document.getElementById('multiple-prepayment-result');
+            resultDiv.innerHTML = `
+                <div class="summary-cards">
+                    <div class="card">
+                        <h3>提前还款汇总</h3>
+                        <p>提前还款次数: ${prepayments.length}次</p>
+                        <p>提前还款总额: ${formatNumber(totalPrepaymentAmount)}元</p>
+                        <p>第一次还款: 第${prepayments[0].month}个月</p>
+                        <p>最后一次还款: 第${prepayments[prepayments.length - 1].month}个月</p>
+                    </div>
+                    <div class="card">
+                        <h3>节省情况</h3>
+                        <p>节省利息: ${formatNumber(savedInterest)}元</p>
+                        <p>原还款期限: ${originalTerm}个月</p>
+                        <p>新还款期限: ${newTerm}个月</p>
+                        <p>缩短期限: ${originalTerm - newTerm}个月</p>
+                    </div>
+                    <div class="card">
+                        <h3>收益分析</h3>
+                        <p>利息节省率: ${((savedInterest / originalTotalInterest) * 100).toFixed(2)}%</p>
+                        <p>期限缩短率: ${(((originalTerm - newTerm) / originalTerm) * 100).toFixed(2)}%</p>
+                        <p>平均每万元节省利息: ${formatNumber((savedInterest / totalPrepaymentAmount) * 10000)}元</p>
+                    </div>
+                </div>
+                
+                <h3>提前还款明细</h3>
+                <div class="prepayment-list">
+                    ${prepayments.map(item => `
+                        <div class="prepayment-item">
+                            <div class="prepayment-info">
+                                第${item.month}个月 - ${formatNumber(item.amount)}元 - ${item.option === 'reduce-term' ? '缩短期限' : '减少月供'}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            // 显示多次提前还款表格
+            document.getElementById('multiple-prepayment-table-container').style.display = 'block';
+            renderMultiplePrepaymentTable('multiple-prepayment-table', newPlan, 1, 'multiple-prepayment-pagination');
+            
+            // 绘制多次提前还款对比图表
+            drawMultiplePrepaymentChart(originalPlan, newPlan);
+            
+            // 切换到多次提前还款选项卡
+            switchTab('multiple-prepayment');
+        }
+        
+        // 渲染多次提前还款表格（包含备注列）
+        function renderMultiplePrepaymentTable(tableId, data, page, paginationId) {
+            const itemsPerPage = 12;
+            const totalPages = Math.ceil(data.length / itemsPerPage);
+            const start = (page - 1) * itemsPerPage;
+            const end = Math.min(start + itemsPerPage, data.length);
+            
+            // 渲染表格数据
+            const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+            
+            for (let i = start; i < end; i++) {
+                const item = data[i];
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${item.month}</td>
+                    <td>${item.date}</td>
+                    <td>${formatNumber(item.payment)}</td>
+                    <td>${formatNumber(item.principal)}</td>
+                    <td>${formatNumber(item.interest)}</td>
+                    <td>${formatNumber(item.actualPayment)}</td>
+                    <td>${formatNumber(item.remainingPrincipal)}</td>
+                    <td>${formatNumber(item.housingFundBalance)}</td>
+                    <td>${item.prepaymentNote || '-'}</td>
+                `;
+                
+                // 如果有提前还款备注，高亮显示该行
+                if (item.prepaymentNote) {
+                    row.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                    row.style.fontWeight = 'bold';
+                }
+                
+                tableBody.appendChild(row);
+            }
+            
+            // 更新分页控件
+            const pagination = document.getElementById(paginationId);
+            pagination.innerHTML = '';
+            
+            // 添加分页按钮
+            if (totalPages > 1) {
+                const firstBtn = document.createElement('button');
+                firstBtn.textContent = '首页';
+                firstBtn.disabled = page === 1;
+                firstBtn.addEventListener('click', () => renderMultiplePrepaymentTable(tableId, data, 1, paginationId));
+                pagination.appendChild(firstBtn);
+                
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = '上一页';
+                prevBtn.disabled = page === 1;
+                prevBtn.addEventListener('click', () => renderMultiplePrepaymentTable(tableId, data, page - 1, paginationId));
+                pagination.appendChild(prevBtn);
+
+                // 页码按钮
+                const maxPageButtons = 5;
+                const halfMaxButtons = Math.floor(maxPageButtons / 2);
+                
+                let startPage = Math.max(1, page - halfMaxButtons);
+                let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+                
+                if (endPage - startPage + 1 < maxPageButtons) {
+                    startPage = Math.max(1, endPage - maxPageButtons + 1);
+                }
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.textContent = i;
+                    pageBtn.className = i === page ? 'active' : '';
+                    pageBtn.addEventListener('click', () => renderMultiplePrepaymentTable(tableId, data, i, paginationId));
+                    pagination.appendChild(pageBtn);
+                }
+                
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = '下一页';
+                nextBtn.disabled = page === totalPages;
+                nextBtn.addEventListener('click', () => renderMultiplePrepaymentTable(tableId, data, page + 1, paginationId));
+                pagination.appendChild(nextBtn);
+                
+                const lastBtn = document.createElement('button');
+                lastBtn.textContent = '末页';
+                lastBtn.disabled = page === totalPages;
+                lastBtn.addEventListener('click', () => renderMultiplePrepaymentTable(tableId, data, totalPages, paginationId));
+                pagination.appendChild(lastBtn);
+            }
+        }
+        
+        // 绘制多次提前还款对比图表
+        function drawMultiplePrepaymentChart(originalPlan, newPlan) {
+            const ctx = document.getElementById('multiple-prepayment-chart').getContext('2d');
+            
+            // 准备数据
+            const maxLength = Math.max(originalPlan.length, newPlan.length);
+            const originalMonthlyPayments = [];
+            const newMonthlyPayments = [];
+            const labels = [];
+            
+            for (let i = 0; i < maxLength; i++) {
+                labels.push(`第${i + 1}月`);
+                originalMonthlyPayments.push(i < originalPlan.length ? originalPlan[i].payment : null);
+                newMonthlyPayments.push(i < newPlan.length ? newPlan[i].payment : null);
+            }
+            
+            // 销毁旧图表
+            if (window.multiplePrepaymentChart) {
+                window.multiplePrepaymentChart.destroy();
+            }
+            
+            // 创建新图表
+            window.multiplePrepaymentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '原还款计划',
+                            data: originalMonthlyPayments,
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                            fill: false,
+                            tension: 0.1
+                        },
+                        {
+                            label: '多次提前还款后计划',
+                            data: newMonthlyPayments,
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            fill: false,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '多次提前还款前后月供对比'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) {
+                                        label += formatNumber(context.parsed.y) + '元';
+                                    } else {
+                                        label += '已结清';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value) + '元';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>
