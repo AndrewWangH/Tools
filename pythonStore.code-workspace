@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../ProjectStore/MediaCrawler"
+		},
+		{
+			"path": "../../ProjectStore/copyparty"
+		},
+		{
+			"path": "../../Ruankao/Docs"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "pythonStore"
+	}
+}

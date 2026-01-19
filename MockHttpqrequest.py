@@ -33,10 +33,8 @@ class MockHttpRequest:
         self.timeout = timeout
         self.max_retries = max_retries
         self.verify_ssl = verify_ssl
-        
         # Initialize session
         self.session = requests.Session()
-        
         # Set default headers
         self.default_headers = {
             'User-Agent': user_agent or 'MockHttpRequest/1.0',

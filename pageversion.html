@@ -15,6 +15,7 @@
             --shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
+        
         * {
             box-sizing: border-box;
             margin: 0;
@@ -25,7 +26,7 @@
             font-family: 'Segoe UI', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f9f9f9;
@@ -57,8 +58,8 @@
         }
         
         .result-section {
-            flex: 2.4;
-            min-width: 600px;
+            flex: 2.76;
+            min-width: 690px;
             background: white;
             padding: 20px;
             border-radius: 10px;
@@ -319,6 +320,8 @@
                 min-width: auto;
             }
         }
+
+        
     </style>
 </head>
 <body>
@@ -334,23 +337,23 @@
             <form id="loan-form">
                 <div class="form-group">
                     <label for="loan-amount">贷款总额(元)</label>
-                    <input type="number" id="loan-amount" value="1000000" min="1">
+                    <input type="number" id="loan-amount" value="1300000" min="1">
                 </div>
                 <div class="form-group">
                     <label for="loan-term">贷款期限(年)</label>
-                    <input type="number" id="loan-term" value="30" min="1" max="40">
+                    <input type="number" id="loan-term" value="20" min="1" max="40">
                 </div>
                 <div class="form-group">
                     <label for="interest-rate">年利率(%)</label>
-                    <input type="number" id="interest-rate" value="3.1" min="0.1" step="0.01" max="20">
+                    <input type="number" id="interest-rate" value="2.6" min="0.1" step="0.01" max="20">
                 </div>
                 <div class="form-group">
                     <label for="housing-fund-balance">公积金账户余额(元)</label>
-                    <input type="number" id="housing-fund-balance" value="100000" min="0">
+                    <input type="number" id="housing-fund-balance" value="330000" min="0">
                 </div>
                 <div class="form-group">
                     <label for="monthly-housing-fund">每月公积金缴存(元)</label>
-                    <input type="number" id="monthly-housing-fund" value="2000" min="0">
+                    <input type="number" id="monthly-housing-fund" value="4700" min="0">
                     <small style="color: #777; font-size: 12px;">每月增加到公积金账户的金额</small>
                 </div>
                 
@@ -362,7 +365,7 @@
                 <h2>提前还款</h2>
                 <div class="form-group">
                     <label for="prepayment-month">还款到第几个月</label>
-                    <input type="number" id="prepayment-month" value="60" min="1">
+                    <input type="number" id="prepayment-month" value="12" min="1">
                 </div>
                 <div class="form-group">
                     <label for="prepayment-amount">提前还款金额(元)</label>
@@ -840,8 +843,19 @@
                     newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / (newMonthlyPayment - remainingPrincipal * monthlyRate)) / Math.log(1 + monthlyRate));
                     
                     // 使用计算得到的新期限重新计算每月还款
-                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
+                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths, housingFundBalance: paidPortion[paidPortion.length - 1].housingFundBalance };
                     const newPlan = calculateEqualPayment(tempParams).plan;
+                    
+                    // 调整新计划的月份编号和日期
+                    for (let i = 0; i < newPlan.length; i++) {
+                        newPlan[i].month = prepaymentMonth + i;
+                        
+                        // 计算还款日期
+                        const now = new Date();
+                        const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                        const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                        newPlan[i].date = dateStr;
+                    }
                     
                     // 合并两部分还款计划
                     prepaymentPlan = [...paidPortion, ...newPlan];
@@ -853,6 +867,9 @@
                     // 重新计算剩余部分的等额本金还款计划
                     const newPlan = [];
                     let tempRemainingPrincipal = remainingPrincipal;
+                    
+                    // 获取上一期的公积金余额
+                    let currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance;
                     
                     for (let i = 0; i < newRemainingMonths; i++) {
                         const month = prepaymentMonth + i;
@@ -868,15 +885,28 @@
                         const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
                         const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
                         
+                        // 每月增加公积金
+                        currentHousingFundBalance += params.monthlyHousingFund;
+                        
+                        // 计算使用的公积金和实际支付
+                        let usedHousingFund = 0;
+                        let actualPayment = payment;
+                        if (payment > 0 && currentHousingFundBalance > 0) {
+                            usedHousingFund = Math.min(currentHousingFundBalance, payment);
+                            currentHousingFundBalance -= usedHousingFund;
+                            actualPayment = payment - usedHousingFund;
+                        }
+                        
                         newPlan.push({
                             month: month,
                             date: dateStr,
                             payment: payment,
                             principal: principal,
                             interest: interest,
-                            housingFund: Math.min(params.housingFund, payment),
-                            actualPayment: Math.max(0, payment - params.housingFund),
-                            remainingPrincipal: tempRemainingPrincipal
+                            housingFund: usedHousingFund,
+                            actualPayment: actualPayment,
+                            remainingPrincipal: tempRemainingPrincipal,
+                            housingFundBalance: currentHousingFundBalance
                         });
                     }
                     
@@ -893,7 +923,7 @@
                     newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
                     
                     // 使用剩余金额和剩余期限重新计算每月还款
-                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths };
+                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths, housingFundBalance: paidPortion[paidPortion.length - 1].housingFundBalance };
                     const newPlan = calculateEqualPayment(tempParams).plan;
                     
                     // 调整新计划的月份编号和日期
@@ -915,6 +945,9 @@
                     const newPlan = [];
                     let tempRemainingPrincipal = remainingPrincipal;
                     
+                    // 获取上一期的公积金余额
+                    let currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance;
+                    
                     for (let i = 0; i < remainingMonths; i++) {
                         const month = prepaymentMonth + i + 1;
                         const interest = tempRemainingPrincipal * params.monthlyRate;
@@ -929,15 +962,28 @@
                         const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
                         const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
                         
+                        // 每月增加公积金
+                        currentHousingFundBalance += params.monthlyHousingFund;
+                        
+                        // 计算使用的公积金和实际支付
+                        let usedHousingFund = 0;
+                        let actualPayment = payment;
+                        if (payment > 0 && currentHousingFundBalance > 0) {
+                            usedHousingFund = Math.min(currentHousingFundBalance, payment);
+                            currentHousingFundBalance -= usedHousingFund;
+                            actualPayment = payment - usedHousingFund;
+                        }
+                        
                         newPlan.push({
                             month: month,
                             date: dateStr,
                             payment: payment,
                             principal: principal,
                             interest: interest,
-                            housingFund: Math.min(params.housingFund, payment),
-                            actualPayment: Math.max(0, payment - params.housingFund),
-                            remainingPrincipal: tempRemainingPrincipal
+                            housingFund: usedHousingFund,
+                            actualPayment: actualPayment,
+                            remainingPrincipal: tempRemainingPrincipal,
+                            housingFundBalance: currentHousingFundBalance
                         });
                     }
                     
@@ -1138,87 +1184,195 @@
         }
         
         // 根据页码渲染分页表格
-        function renderPaginatedTable(tableId, data, page, paginationId) {
-            const itemsPerPage = 12;
-            const totalPages = Math.ceil(data.length / itemsPerPage);
-            const start = (page - 1) * itemsPerPage;
-            const end = Math.min(start + itemsPerPage, data.length);
-            
-            // 渲染表格数据
-            const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
-            tableBody.innerHTML = '';
-            
-            for (let i = start; i < end; i++) {
-                const item = data[i];
-                const row = document.createElement('tr');
-                
-                row.innerHTML = `
-                    <td>${item.month}</td>
-                    <td>${item.date}</td>
-                    <td>${formatNumber(item.payment)}</td>
-                    <td>${formatNumber(item.principal)}</td>
-                    <td>${formatNumber(item.interest)}</td>
-                    <td>${formatNumber(item.actualPayment)}</td>
-                    <td>${formatNumber(item.remainingPrincipal)}</td>
-                    <td>${formatNumber(item.housingFundBalance)}</td>
-                `;
-                
-                tableBody.appendChild(row);
+       // 修改渲染分页表格函数，增加对提前还款表格的特殊处理
+function renderPaginatedTable(tableId, data, page, paginationId) {
+    const itemsPerPage = 12;
+    const totalPages = Math.ceil(data.length / itemsPerPage);
+    const start = (page - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, data.length);
+    
+    // 渲染表格数据
+    const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
+    tableBody.innerHTML = '';
+    
+    for (let i = start; i < end; i++) {
+        const item = data[i];
+        const row = document.createElement('tr');
+        
+        // 检查是否是提前还款表格，如果是，添加特殊标记
+        let rowClass = '';
+        let remarkCell = '';
+        
+        if (tableId === 'prepayment-table') {
+            // 检查是否是提前还款的那一行
+            const prepaymentMonth = parseInt(document.getElementById('prepayment-month').value);
+            if (item.month === prepaymentMonth) {
+                rowClass = 'prepayment-row';
+                remarkCell = '<td style="background-color: #fff3cd; font-weight: bold;">提前还款</td>';
+            } else {
+                remarkCell = '<td></td>';
             }
-            
-            // 更新分页控件
-            const pagination = document.getElementById(paginationId);
-            pagination.innerHTML = '';
-            
-            // 添加"首页"和"上一页"按钮
-            if (totalPages > 1) {
-                const firstBtn = document.createElement('button');
-                firstBtn.textContent = '首页';
-                firstBtn.disabled = page === 1;
-                firstBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, 1, paginationId));
-                pagination.appendChild(firstBtn);
-                
-                const prevBtn = document.createElement('button');
-                prevBtn.textContent = '上一页';
-                prevBtn.disabled = page === 1;
-                prevBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, page - 1, paginationId));
-                pagination.appendChild(prevBtn);
-            }
-            
-            // 添加页码按钮
-            const maxPageButtons = 5; // 最多显示的页码按钮数
-            const halfMaxButtons = Math.floor(maxPageButtons / 2);
-            
-            let startPage = Math.max(1, page - halfMaxButtons);
-            let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-            
-            if (endPage - startPage + 1 < maxPageButtons) {
-                startPage = Math.max(1, endPage - maxPageButtons + 1);
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                const pageBtn = document.createElement('button');
-                pageBtn.textContent = i;
-                pageBtn.className = i === page ? 'active' : '';
-                pageBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, i, paginationId));
-                pagination.appendChild(pageBtn);
-            }
-            
-            // 添加"下一页"和"末页"按钮
-            if (totalPages > 1) {
-                const nextBtn = document.createElement('button');
-                nextBtn.textContent = '下一页';
-                nextBtn.disabled = page === totalPages;
-                nextBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, page + 1, paginationId));
-                pagination.appendChild(nextBtn);
-                
-                const lastBtn = document.createElement('button');
-                lastBtn.textContent = '末页';
-                lastBtn.disabled = page === totalPages;
-                lastBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, totalPages, paginationId));
-                pagination.appendChild(lastBtn);
-            }
+        } else if (tableId === 'multiple-prepayment-table') {
+            // 多次提前还款表格的备注列
+            remarkCell = `<td>${item.remark || ''}</td>`;
         }
+        
+        row.className = rowClass;
+        row.innerHTML = `
+            <td>${item.month}</td>
+            <td>${item.date}</td>
+            <td>${formatNumber(item.payment)}</td>
+            <td>${formatNumber(item.principal)}</td>
+            <td>${formatNumber(item.interest)}</td>
+            <td>${formatNumber(item.actualPayment)}</td>
+            <td>${formatNumber(item.remainingPrincipal)}</td>
+            <td>${formatNumber(item.housingFundBalance)}</td>
+            ${remarkCell}
+        `;
+        
+        tableBody.appendChild(row);
+    }
+    
+    // 更新分页控件
+    const pagination = document.getElementById(paginationId);
+    pagination.innerHTML = '';
+    
+    // 添加"显示全部"按钮
+    if (totalPages > 1) {
+        const showAllBtn = document.createElement('button');
+        showAllBtn.textContent = '显示全部';
+        showAllBtn.className = 'show-all-btn';
+        showAllBtn.addEventListener('click', () => renderAllData(tableId, data, paginationId));
+        pagination.appendChild(showAllBtn);
+        
+        // 添加分隔符
+        const separator = document.createElement('span');
+        separator.textContent = ' | ';
+        separator.style.margin = '0 10px';
+        pagination.appendChild(separator);
+    }
+    
+    // 添加"首页"和"上一页"按钮
+    if (totalPages > 1) {
+        const firstBtn = document.createElement('button');
+        firstBtn.textContent = '首页';
+        firstBtn.disabled = page === 1;
+        firstBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, 1, paginationId));
+        pagination.appendChild(firstBtn);
+        
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = '上一页';
+        prevBtn.disabled = page === 1;
+        prevBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, page - 1, paginationId));
+        pagination.appendChild(prevBtn);
+    }
+    
+    // 添加页码按钮
+    const maxPageButtons = 5; // 最多显示的页码按钮数
+    const halfMaxButtons = Math.floor(maxPageButtons / 2);
+    
+    let startPage = Math.max(1, page - halfMaxButtons);
+    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    
+    if (endPage - startPage + 1 < maxPageButtons) {
+        startPage = Math.max(1, endPage - maxPageButtons + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.className = i === page ? 'active' : '';
+        pageBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, i, paginationId));
+        pagination.appendChild(pageBtn);
+    }
+    
+    // 添加"下一页"和"末页"按钮
+    if (totalPages > 1) {
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = '下一页';
+        nextBtn.disabled = page === totalPages;
+        nextBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, page + 1, paginationId));
+        pagination.appendChild(nextBtn);
+        
+        const lastBtn = document.createElement('button');
+        lastBtn.textContent = '末页';
+        lastBtn.disabled = page === totalPages;
+        lastBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, totalPages, paginationId));
+        pagination.appendChild(lastBtn);
+    }
+    
+    // 添加页面信息
+    if (totalPages > 1) {
+        const pageInfo = document.createElement('span');
+        pageInfo.textContent = ` (第${page}页/共${totalPages}页, 共${data.length}条记录)`;
+        pageInfo.style.marginLeft = '10px';
+        pageInfo.style.fontSize = '12px';
+        pageInfo.style.color = '#666';
+        pagination.appendChild(pageInfo);
+    }
+}
+
+// 新增函数：显示全部数据
+function renderAllData(tableId, data, paginationId) {
+    // 渲染所有数据
+    const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
+    tableBody.innerHTML = '';
+    
+    for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+        const row = document.createElement('tr');
+        
+        // 检查是否是提前还款表格，如果是，添加特殊标记
+        let rowClass = '';
+        let remarkCell = '';
+        
+        if (tableId === 'prepayment-table') {
+            // 检查是否是提前还款的那一行
+            const prepaymentMonth = parseInt(document.getElementById('prepayment-month').value);
+            if (item.month === prepaymentMonth) {
+                rowClass = 'prepayment-row';
+                remarkCell = '<td style="background-color: #fff3cd; font-weight: bold;">提前还款</td>';
+            } else {
+                remarkCell = '<td></td>';
+            }
+        } else if (tableId === 'multiple-prepayment-table') {
+            // 多次提前还款表格的备注列
+            remarkCell = `<td>${item.remark || ''}</td>`;
+        }
+        
+        row.className = rowClass;
+        row.innerHTML = `
+            <td>${item.month}</td>
+            <td>${item.date}</td>
+            <td>${formatNumber(item.payment)}</td>
+            <td>${formatNumber(item.principal)}</td>
+            <td>${formatNumber(item.interest)}</td>
+            <td>${formatNumber(item.actualPayment)}</td>
+            <td>${formatNumber(item.remainingPrincipal)}</td>
+            <td>${formatNumber(item.housingFundBalance)}</td>
+            ${remarkCell}
+        `;
+        
+        tableBody.appendChild(row);
+    }
+    
+    // 更新分页控件为"返回分页"按钮
+    const pagination = document.getElementById(paginationId);
+    pagination.innerHTML = '';
+    
+    const returnBtn = document.createElement('button');
+    returnBtn.textContent = '返回分页显示';
+    returnBtn.addEventListener('click', () => renderPaginatedTable(tableId, data, 1, paginationId));
+    pagination.appendChild(returnBtn);
+    
+    // 添加记录信息
+    const recordInfo = document.createElement('span');
+    recordInfo.textContent = ` (显示全部 ${data.length} 条记录)`;
+    recordInfo.style.marginLeft = '10px';
+    recordInfo.style.fontSize = '12px';
+    recordInfo.style.color = '#666';
+    pagination.appendChild(recordInfo);
+}
         
         // 导出还款计划为CSV
         function exportCSV() {
@@ -1678,15 +1832,15 @@
         
         // 计算单次提前还款（重构为独立函数）
         function calculateSinglePrepayment(originalPlan, prepaymentMonth, prepaymentAmount, option, params) {
-            // 提取已经还款的部分
-            const paidPortion = originalPlan.slice(0, prepaymentMonth);
+            // 提取已经还款的部分（使用深拷贝避免修改原始数据）
+            const paidPortion = originalPlan.slice(0, prepaymentMonth).map(item => ({...item}));
             
             // 计算剩余本金
             let remainingPrincipal = paidPortion[paidPortion.length - 1].remainingPrincipal - prepaymentAmount;
             
             // 如果剩余本金为0，则提前结清
             if (remainingPrincipal <= 0) {
-                const newPlan = [...paidPortion];
+                const newPlan = paidPortion.map(item => ({...item}));
                 newPlan[newPlan.length - 1].payment += remainingPrincipal + prepaymentAmount;
                 newPlan[newPlan.length - 1].principal += remainingPrincipal + prepaymentAmount;
                 newPlan[newPlan.length - 1].remainingPrincipal = 0;
@@ -1702,13 +1856,27 @@
             let newMonthlyPayment;
             
             // 根据选择计算新的还款计划
+            // 计算当前计划的实际剩余期数（基于传入的originalPlan，而非原始贷款期限）
+            const currentPlanRemainingMonths = originalPlan.length - prepaymentMonth;
+            const monthlyRate = params.monthlyRate;
+            
             if (option === 'reduce-term') {
                 // 缩短贷款期限，保持月供不变（等额本息）
-                const monthlyRate = params.monthlyRate;
-                newMonthlyPayment = originalPlan[0].payment; // 保持月供不变
+                // 使用提前还款前一期的月供作为参考（而不是最初的月供）
+                newMonthlyPayment = paidPortion[paidPortion.length - 1].payment - prepaymentAmount;
+                if (prepaymentMonth > 0 && originalPlan[prepaymentMonth - 1]) {
+                    // 使用当前计划中该期的原始月供
+                    newMonthlyPayment = originalPlan[prepaymentMonth - 1].payment;
+                }
                 
                 // 计算新的期限
-                newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / (newMonthlyPayment - remainingPrincipal * monthlyRate)) / Math.log(1 + monthlyRate));
+                const denominator = newMonthlyPayment - remainingPrincipal * monthlyRate;
+                if (denominator <= 0) {
+                    // 如果月供无法覆盖利息，使用剩余期限
+                    newRemainingMonths = currentPlanRemainingMonths;
+                } else {
+                    newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / denominator) / Math.log(1 + monthlyRate));
+                }
                 
                 // 使用计算得到的新期限重新计算每月还款
                 const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
@@ -1729,10 +1897,10 @@
                 return [...paidPortion, ...newPlan];
             } else {
                 // 减少月供，保持还款期限不变
-                const remainingMonths = params.months - prepaymentMonth;
+                // 使用当前计划的实际剩余期数，而非原始贷款期限
+                const remainingMonths = currentPlanRemainingMonths;
                 
                 // 等额本息情况
-                const monthlyRate = params.monthlyRate;
                 newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
                 
                 // 使用剩余金额和剩余期限重新计算每月还款
@@ -1763,47 +1931,129 @@
             }
             
             const params = getLoanParams();
-            let currentPlan = [...equalPaymentPlan]; // 从等额本息开始
+            // 使用深拷贝避免污染原始还款计划数据
+            let currentPlan = equalPaymentPlan.map(item => ({...item}));
             const allPrepayments = [...prepaymentList].sort((a, b) => a.month - b.month);
-            
-            // 验证所有提前还款计划是否合理
-            let adjustedMonthOffset = 0; // 记录因为提前还清导致的月份偏移
             
             for (let i = 0; i < allPrepayments.length; i++) {
                 const prepay = allPrepayments[i];
-                const adjustedMonth = prepay.month - adjustedMonthOffset;
+                const targetMonth = prepay.month; // 用户指定的还款月份
                 
-                // 检查调整后的月份是否超出当前计划长度
-                if (adjustedMonth > currentPlan.length) {
-                    alert(`第${prepay.month}个月的提前还款计划无效：此时贷款已结清`);
+                // 根据 month 属性找到对应的数组索引（而不是直接用月份-1作为索引）
+                const planIndex = currentPlan.findIndex(item => item.month === targetMonth);
+                
+                // 检查目标月份是否存在于当前计划中
+                if (planIndex === -1) {
+                    alert(`第${targetMonth}个月的提前还款计划无效：此时贷款已结清或该月份不存在`);
                     return;
                 }
                 
                 // 检查提前还款金额是否超过剩余本金
-                const availablePrincipal = currentPlan[adjustedMonth - 1].remainingPrincipal;
+                const availablePrincipal = currentPlan[planIndex].remainingPrincipal;
                 if (prepay.amount > availablePrincipal) {
-                    alert(`第${prepay.month}个月的提前还款金额(${formatNumber(prepay.amount)}元)超过剩余本金(${formatNumber(availablePrincipal)}元)`);
+                    alert(`第${targetMonth}个月的提前还款金额(${formatNumber(prepay.amount)}元)超过剩余本金(${formatNumber(availablePrincipal)}元)`);
                     return;
                 }
                 
-                // 计算当前提前还款的效果
-                const newPlan = calculateSinglePrepayment(currentPlan, adjustedMonth, prepay.amount, prepay.option, params);
+                // 计算当前提前还款的效果（使用数组索引+1，因为函数内部用的是月份位置）
+                const newPlan = calculateSinglePrepaymentByIndex(currentPlan, planIndex, prepay.amount, prepay.option, params, targetMonth);
                 
-                // 记录提前还款信息到计划中
-                if (newPlan[adjustedMonth - 1]) {
-                    newPlan[adjustedMonth - 1].prepaymentNote = `提前还款${formatNumber(prepay.amount)}元(${prepay.option === 'reduce-term' ? '缩短期限' : '减少月供'})`;
+                // 记录提前还款信息到计划中（通过month属性查找）
+                const noteIndex = newPlan.findIndex(item => item.month === targetMonth);
+                if (noteIndex !== -1) {
+                    newPlan[noteIndex].prepaymentNote = `提前还款${formatNumber(prepay.amount)}元(${prepay.option === 'reduce-term' ? '缩短期限' : '减少月供'})`;
                 }
-                
-                // 更新月份偏移
-                const originalLength = currentPlan.length;
-                const newLength = newPlan.length;
-                adjustedMonthOffset += (originalLength - newLength);
                 
                 currentPlan = newPlan;
             }
             
             multiplePrepaymentPlan = currentPlan;
             displayMultiplePrepaymentResults(multiplePrepaymentPlan, equalPaymentPlan, allPrepayments);
+        }
+        
+        // 根据数组索引计算单次提前还款（新版本）
+        function calculateSinglePrepaymentByIndex(originalPlan, planIndex, prepaymentAmount, option, params, originalMonth) {
+            // 提取已经还款的部分（使用深拷贝避免修改原始数据）
+            const paidPortion = originalPlan.slice(0, planIndex + 1).map(item => ({...item}));
+            
+            // 计算剩余本金
+            let remainingPrincipal = paidPortion[paidPortion.length - 1].remainingPrincipal - prepaymentAmount;
+            
+            // 如果剩余本金为0，则提前结清
+            if (remainingPrincipal <= 0) {
+                const newPlan = paidPortion.map(item => ({...item}));
+                newPlan[newPlan.length - 1].payment += remainingPrincipal + prepaymentAmount;
+                newPlan[newPlan.length - 1].principal += remainingPrincipal + prepaymentAmount;
+                newPlan[newPlan.length - 1].remainingPrincipal = 0;
+                return newPlan;
+            }
+            
+            // 添加提前还款那个月的特殊记录
+            paidPortion[paidPortion.length - 1].payment += prepaymentAmount;
+            paidPortion[paidPortion.length - 1].principal += prepaymentAmount;
+            paidPortion[paidPortion.length - 1].remainingPrincipal = remainingPrincipal;
+            
+            let newRemainingMonths;
+            let newMonthlyPayment;
+            
+            // 计算当前计划的实际剩余期数
+            const currentPlanRemainingMonths = originalPlan.length - planIndex - 1;
+            const monthlyRate = params.monthlyRate;
+            
+            if (option === 'reduce-term') {
+                // 缩短贷款期限，保持月供不变
+                newMonthlyPayment = originalPlan[planIndex].payment;
+                
+                // 计算新的期限
+                const denominator = newMonthlyPayment - remainingPrincipal * monthlyRate;
+                if (denominator <= 0) {
+                    newRemainingMonths = currentPlanRemainingMonths;
+                } else {
+                    newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / denominator) / Math.log(1 + monthlyRate));
+                }
+                
+                // 使用计算得到的新期限重新计算每月还款
+                const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
+                const newPlan = calculateEqualPayment(tempParams).plan;
+                
+                // 调整新计划的月份编号和日期，保持原始月份连续
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = originalMonth + i + 1;
+                    
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
+                }
+                
+                return [...paidPortion, ...newPlan];
+            } else {
+                // 减少月供，保持还款期限不变
+                const remainingMonths = currentPlanRemainingMonths;
+                
+                if (remainingMonths <= 0) {
+                    return paidPortion;
+                }
+                
+                newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+                
+                const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths };
+                const newPlan = calculateEqualPayment(tempParams).plan;
+                
+                // 调整新计划的月份编号和日期，保持原始月份连续
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = originalMonth + i + 1;
+                    
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
+                }
+                
+                return [...paidPortion, ...newPlan];
+            }
         }
         
         // 显示多次提前还款结果
