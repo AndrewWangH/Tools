@@ -333,28 +333,68 @@
     <div class="container">
         <section class="input-section">
             <h2>贷款参数</h2>
-            <!-- 在贷款参数表单中添加公积金账户余额输入 -->
             <form id="loan-form">
                 <div class="form-group">
-                    <label for="loan-amount">贷款总额(元)</label>
-                    <input type="number" id="loan-amount" value="1300000" min="1">
+                    <label for="loan-type">贷款类型</label>
+                    <select id="loan-type">
+                        <option value="housing-fund">纯公积金贷款</option>
+                        <option value="commercial">纯商业贷款</option>
+                        <option value="combined" selected>组合贷款</option>
+                    </select>
                 </div>
-                <div class="form-group">
-                    <label for="loan-term">贷款期限(年)</label>
-                    <input type="number" id="loan-term" value="20" min="1" max="40">
+                
+                <!-- 公积金贷款部分 -->
+                <div id="housing-fund-loan-section" class="loan-section" style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #2980b9;">公积金贷款</h4>
+                    <div class="form-group">
+                        <label for="housing-fund-amount">贷款金额(元)</label>
+                        <input type="number" id="housing-fund-amount" value="700000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="housing-fund-term">贷款期限(年)</label>
+                        <input type="number" id="housing-fund-term" value="20" min="1" max="30">
+                    </div>
+                    <div class="form-group">
+                        <label for="housing-fund-rate">年利率(%)</label>
+                        <input type="number" id="housing-fund-rate" value="2.85" min="0.1" step="0.01" max="20">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="interest-rate">年利率(%)</label>
-                    <input type="number" id="interest-rate" value="2.6" min="0.1" step="0.01" max="20">
+                
+                <!-- 商业贷款部分 -->
+                <div id="commercial-loan-section" class="loan-section" style="background: #fef5e7; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #e67e22;">商业贷款</h4>
+                    <div class="form-group">
+                        <label for="commercial-amount">贷款金额(元)</label>
+                        <input type="number" id="commercial-amount" value="600000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="commercial-term">贷款期限(年)</label>
+                        <input type="number" id="commercial-term" value="20" min="1" max="30">
+                    </div>
+                    <div class="form-group">
+                        <label for="commercial-rate">年利率(%)</label>
+                        <input type="number" id="commercial-rate" value="3.45" min="0.1" step="0.01" max="20">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="housing-fund-balance">公积金账户余额(元)</label>
-                    <input type="number" id="housing-fund-balance" value="330000" min="0">
+                
+                <!-- 贷款总额显示 -->
+                <div class="form-group" style="background: #d5f5e3; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <label style="margin: 0;">贷款总额</label>
+                    <div id="total-loan-display" style="font-size: 18px; font-weight: bold; color: #27ae60;">1,300,000.00 元</div>
                 </div>
-                <div class="form-group">
-                    <label for="monthly-housing-fund">每月公积金缴存(元)</label>
-                    <input type="number" id="monthly-housing-fund" value="4700" min="0">
-                    <small style="color: #777; font-size: 12px;">每月增加到公积金账户的金额</small>
+                
+                <!-- 公积金账户信息 -->
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #555;">公积金账户</h4>
+                    <div class="form-group">
+                        <label for="housing-fund-balance">账户余额(元)</label>
+                        <input type="number" id="housing-fund-balance" value="330000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="monthly-housing-fund">每月缴存(元)</label>
+                        <input type="number" id="monthly-housing-fund" value="4700" min="0">
+                        <small style="color: #777; font-size: 12px;">每月增加到公积金账户的金额</small>
+                    </div>
                 </div>
                 
                 <button type="button" id="calculate-btn">计算还款</button>
@@ -614,158 +654,321 @@
             return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         
+        // 更新贷款类型显示
+        function updateLoanTypeDisplay() {
+            const loanType = document.getElementById('loan-type').value;
+            const housingFundSection = document.getElementById('housing-fund-loan-section');
+            const commercialSection = document.getElementById('commercial-loan-section');
+            
+            if (loanType === 'housing-fund') {
+                housingFundSection.style.display = 'block';
+                commercialSection.style.display = 'none';
+            } else if (loanType === 'commercial') {
+                housingFundSection.style.display = 'none';
+                commercialSection.style.display = 'block';
+            } else {
+                housingFundSection.style.display = 'block';
+                commercialSection.style.display = 'block';
+            }
+            
+            updateTotalLoanDisplay();
+        }
+        
+        // 更新贷款总额显示
+        function updateTotalLoanDisplay() {
+            const loanType = document.getElementById('loan-type').value;
+            let totalLoan = 0;
+            
+            if (loanType === 'housing-fund') {
+                totalLoan = parseFloat(document.getElementById('housing-fund-amount').value) || 0;
+            } else if (loanType === 'commercial') {
+                totalLoan = parseFloat(document.getElementById('commercial-amount').value) || 0;
+            } else {
+                totalLoan = (parseFloat(document.getElementById('housing-fund-amount').value) || 0) +
+                           (parseFloat(document.getElementById('commercial-amount').value) || 0);
+            }
+            
+            document.getElementById('total-loan-display').textContent = formatNumber(totalLoan) + ' 元';
+        }
+        
         // 获取贷款参数
         function getLoanParams() {
-            const loanAmount = parseFloat(document.getElementById('loan-amount').value);
-            const loanTerm = parseFloat(document.getElementById('loan-term').value);
-            const interestRate = parseFloat(document.getElementById('interest-rate').value) / 100;
-            const housingFundBalance = parseFloat(document.getElementById('housing-fund-balance').value);
+            const loanType = document.getElementById('loan-type').value;
+            const housingFundBalance = parseFloat(document.getElementById('housing-fund-balance').value) || 0;
             const monthlyHousingFund = parseFloat(document.getElementById('monthly-housing-fund').value) || 0;
             
+            let housingFundAmount = 0;
+            let housingFundRate = 0;
+            let housingFundTerm = 0;
+            let commercialAmount = 0;
+            let commercialRate = 0;
+            let commercialTerm = 0;
+            
+            if (loanType === 'housing-fund' || loanType === 'combined') {
+                housingFundAmount = parseFloat(document.getElementById('housing-fund-amount').value) || 0;
+                housingFundRate = parseFloat(document.getElementById('housing-fund-rate').value) / 100;
+                housingFundTerm = parseFloat(document.getElementById('housing-fund-term').value) || 0;
+            }
+            
+            if (loanType === 'commercial' || loanType === 'combined') {
+                commercialAmount = parseFloat(document.getElementById('commercial-amount').value) || 0;
+                commercialRate = parseFloat(document.getElementById('commercial-rate').value) / 100;
+                commercialTerm = parseFloat(document.getElementById('commercial-term').value) || 0;
+            }
+            
+            const totalLoanAmount = housingFundAmount + commercialAmount;
+            
+            // 计算最长贷款期限（用于确定还款计划长度）
+            const maxTermYears = Math.max(housingFundTerm, commercialTerm);
+            const maxMonths = maxTermYears * 12;
+            
+            // 计算加权平均利率（用于提前还款等简化计算）
+            let weightedRate = 0;
+            if (totalLoanAmount > 0) {
+                weightedRate = (housingFundAmount * housingFundRate + commercialAmount * commercialRate) / totalLoanAmount;
+            }
+            
             return {
-                loanAmount,
-                loanTerm,
-                interestRate,
+                loanType,
+                loanAmount: totalLoanAmount,
+                loanTerm: maxTermYears,
+                housingFundAmount,
+                housingFundRate,
+                housingFundTerm,
+                housingFundMonths: housingFundTerm * 12,
+                housingFundMonthlyRate: housingFundRate / 12,
+                commercialAmount,
+                commercialRate,
+                commercialTerm,
+                commercialMonths: commercialTerm * 12,
+                commercialMonthlyRate: commercialRate / 12,
+                interestRate: weightedRate,
                 housingFundBalance,
                 monthlyHousingFund,
-                months: loanTerm * 12,
-                monthlyRate: interestRate / 12
+                months: maxMonths,
+                monthlyRate: weightedRate / 12
             };
         }
         
-        // 计算等额本息还款计划
-        function calculateEqualPayment(params) {
-            const { loanAmount, months, monthlyRate, housingFundBalance, monthlyHousingFund } = params;
+        // 计算单笔贷款的等额本息还款计划（内部使用）
+        function calculateSingleLoanEqualPayment(loanAmount, months, monthlyRate) {
+            if (loanAmount <= 0 || months <= 0) {
+                return { plan: [], totalInterest: 0, monthlyPayment: 0 };
+            }
             
-            // 等额本息月供计算公式
             const monthlyPayment = loanAmount * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
             
             let plan = [];
             let remainingPrincipal = loanAmount;
             let totalInterest = 0;
-            let currentHousingFundBalance = housingFundBalance; // 当前公积金余额
+            
+            for (let i = 1; i <= months; i++) {
+                const interest = remainingPrincipal * monthlyRate;
+                const principal = monthlyPayment - interest;
+                remainingPrincipal -= principal;
+                if (remainingPrincipal < 0.01) remainingPrincipal = 0;
+                totalInterest += interest;
+                
+                plan.push({
+                    month: i,
+                    payment: monthlyPayment,
+                    principal: principal,
+                    interest: interest,
+                    remainingPrincipal: remainingPrincipal
+                });
+            }
+            
+            return { plan, totalInterest, monthlyPayment };
+        }
+        
+        // 计算单笔贷款的等额本金还款计划（内部使用）
+        function calculateSingleLoanEqualPrincipal(loanAmount, months, monthlyRate) {
+            if (loanAmount <= 0 || months <= 0) {
+                return { plan: [], totalInterest: 0 };
+            }
+            
+            const monthlyPrincipal = loanAmount / months;
+            
+            let plan = [];
+            let remainingPrincipal = loanAmount;
+            let totalInterest = 0;
+            
+            for (let i = 1; i <= months; i++) {
+                const interest = remainingPrincipal * monthlyRate;
+                const payment = monthlyPrincipal + interest;
+                remainingPrincipal -= monthlyPrincipal;
+                if (remainingPrincipal < 0.01) remainingPrincipal = 0;
+                totalInterest += interest;
+                
+                plan.push({
+                    month: i,
+                    payment: payment,
+                    principal: monthlyPrincipal,
+                    interest: interest,
+                    remainingPrincipal: remainingPrincipal
+                });
+            }
+            
+            return { plan, totalInterest };
+        }
+        
+        // 计算等额本息还款计划（支持组合贷款，分别年限）
+        function calculateEqualPayment(params) {
+            const { housingFundBalance, monthlyHousingFund, 
+                    housingFundAmount, housingFundMonths, housingFundMonthlyRate,
+                    commercialAmount, commercialMonths, commercialMonthlyRate } = params;
+            
+            // 分别计算公积金贷款和商业贷款
+            const hfResult = calculateSingleLoanEqualPayment(housingFundAmount, housingFundMonths, housingFundMonthlyRate);
+            const cmResult = calculateSingleLoanEqualPayment(commercialAmount, commercialMonths, commercialMonthlyRate);
+            
+            // 确定最长期限
+            const maxMonths = Math.max(housingFundMonths || 0, commercialMonths || 0);
+            
+            let plan = [];
+            let totalInterest = hfResult.totalInterest + cmResult.totalInterest;
+            let currentHousingFundBalance = housingFundBalance;
+            const totalLoanAmount = housingFundAmount + commercialAmount;
             
             const now = new Date();
             const currentMonth = now.getMonth();
             const currentYear = now.getFullYear();
             
-            for (let i = 1; i <= months; i++) {
-                // 计算还款日期
-                const paymentDate = new Date(currentYear, currentMonth + i, 1);
+            for (let i = 0; i < maxMonths; i++) {
+                const paymentDate = new Date(currentYear, currentMonth + i + 1, 1);
                 const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
                 
                 // 每月先增加公积金余额
                 currentHousingFundBalance += monthlyHousingFund;
                 
-                // 计算每月利息
-                const interest = remainingPrincipal * monthlyRate;
+                // 获取两笔贷款本月的还款数据（如果还在还款期内）
+                const hfData = hfResult.plan[i] || { payment: 0, principal: 0, interest: 0, remainingPrincipal: 0 };
+                const cmData = cmResult.plan[i] || { payment: 0, principal: 0, interest: 0, remainingPrincipal: 0 };
                 
-                // 计算每月本金
-                const principal = monthlyPayment - interest;
+                const monthlyPayment = hfData.payment + cmData.payment;
+                const principal = hfData.principal + cmData.principal;
+                const interest = hfData.interest + cmData.interest;
+                const remainingPrincipal = hfData.remainingPrincipal + cmData.remainingPrincipal;
                 
-                // 更新剩余本金
-                remainingPrincipal -= principal;
-                if (remainingPrincipal < 0.01) remainingPrincipal = 0; // 处理浮点数精度问题
-                
-                // 计算本月可用公积金：从公积金账户余额中使用
+                // 计算公积金冲抵
                 let usedHousingFund = 0;
-                
                 if (monthlyPayment > 0 && currentHousingFundBalance > 0) {
                     usedHousingFund = Math.min(currentHousingFundBalance, monthlyPayment);
                     currentHousingFundBalance -= usedHousingFund;
                 }
                 
-                // 计算实际现金支出
                 const actualPayment = Math.max(0, monthlyPayment - usedHousingFund);
                 
-                // 累计利息
-                totalInterest += interest;
-                
                 plan.push({
-                    month: i,
+                    month: i + 1,
                     date: dateStr,
                     payment: monthlyPayment,
                     principal: principal,
                     interest: interest,
                     actualPayment: actualPayment,
                     remainingPrincipal: remainingPrincipal,
-                    housingFundBalance: currentHousingFundBalance
+                    housingFundBalance: currentHousingFundBalance,
+                    // 分项数据
+                    hfPayment: hfData.payment,
+                    hfPrincipal: hfData.principal,
+                    hfInterest: hfData.interest,
+                    hfRemaining: hfData.remainingPrincipal,
+                    cmPayment: cmData.payment,
+                    cmPrincipal: cmData.principal,
+                    cmInterest: cmData.interest,
+                    cmRemaining: cmData.remainingPrincipal
                 });
             }
             
+            // 计算首月总月供
+            const firstMonthPayment = (hfResult.monthlyPayment || 0) + (cmResult.monthlyPayment || 0);
+            
             return {
                 plan,
-                totalPayment: loanAmount + totalInterest,
+                totalPayment: totalLoanAmount + totalInterest,
                 totalInterest: totalInterest,
-                monthlyPayment: monthlyPayment
+                monthlyPayment: firstMonthPayment,
+                hfMonthlyPayment: hfResult.monthlyPayment || 0,
+                cmMonthlyPayment: cmResult.monthlyPayment || 0,
+                hfTotalInterest: hfResult.totalInterest,
+                cmTotalInterest: cmResult.totalInterest
             };
         }
         
-        // 计算等额本金还款计划
+        // 计算等额本金还款计划（支持组合贷款，分别年限）
         function calculateEqualPrincipal(params) {
-            const { loanAmount, months, monthlyRate, housingFundBalance, monthlyHousingFund } = params;
+            const { housingFundBalance, monthlyHousingFund,
+                    housingFundAmount, housingFundMonths, housingFundMonthlyRate,
+                    commercialAmount, commercialMonths, commercialMonthlyRate } = params;
             
-            // 每月归还本金金额
-            const monthlyPrincipal = loanAmount / months;
+            // 分别计算公积金贷款和商业贷款
+            const hfResult = calculateSingleLoanEqualPrincipal(housingFundAmount, housingFundMonths, housingFundMonthlyRate);
+            const cmResult = calculateSingleLoanEqualPrincipal(commercialAmount, commercialMonths, commercialMonthlyRate);
+            
+            // 确定最长期限
+            const maxMonths = Math.max(housingFundMonths || 0, commercialMonths || 0);
             
             let plan = [];
-            let remainingPrincipal = loanAmount;
-            let totalInterest = 0;
-            let currentHousingFundBalance = housingFundBalance; // 当前公积金余额
+            let totalInterest = hfResult.totalInterest + cmResult.totalInterest;
+            let currentHousingFundBalance = housingFundBalance;
+            const totalLoanAmount = housingFundAmount + commercialAmount;
             
             const now = new Date();
             const currentMonth = now.getMonth();
             const currentYear = now.getFullYear();
             
-            for (let i = 1; i <= months; i++) {
-                // 计算还款日期
-                const paymentDate = new Date(currentYear, currentMonth + i, 1);
+            for (let i = 0; i < maxMonths; i++) {
+                const paymentDate = new Date(currentYear, currentMonth + i + 1, 1);
                 const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
                 
                 // 每月先增加公积金余额
                 currentHousingFundBalance += monthlyHousingFund;
                 
-                // 计算每月利息
-                const interest = remainingPrincipal * monthlyRate;
+                // 获取两笔贷款本月的还款数据
+                const hfData = hfResult.plan[i] || { payment: 0, principal: 0, interest: 0, remainingPrincipal: 0 };
+                const cmData = cmResult.plan[i] || { payment: 0, principal: 0, interest: 0, remainingPrincipal: 0 };
                 
-                // 计算每月还款总额
-                const monthlyPayment = monthlyPrincipal + interest;
+                const monthlyPayment = hfData.payment + cmData.payment;
+                const principal = hfData.principal + cmData.principal;
+                const interest = hfData.interest + cmData.interest;
+                const remainingPrincipal = hfData.remainingPrincipal + cmData.remainingPrincipal;
                 
-                // 更新剩余本金
-                remainingPrincipal -= monthlyPrincipal;
-                if (remainingPrincipal < 0.01) remainingPrincipal = 0; // 处理浮点数精度问题
-                
-                // 计算本月可用公积金：从公积金账户余额中使用
+                // 计算公积金冲抵
                 let usedHousingFund = 0;
-                
                 if (monthlyPayment > 0 && currentHousingFundBalance > 0) {
                     usedHousingFund = Math.min(currentHousingFundBalance, monthlyPayment);
                     currentHousingFundBalance -= usedHousingFund;
                 }
                 
-                // 计算实际现金支出
                 const actualPayment = Math.max(0, monthlyPayment - usedHousingFund);
                 
-                // 累计利息
-                totalInterest += interest;
-                
                 plan.push({
-                    month: i,
+                    month: i + 1,
                     date: dateStr,
                     payment: monthlyPayment,
-                    principal: monthlyPrincipal,
+                    principal: principal,
                     interest: interest,
                     actualPayment: actualPayment,
                     remainingPrincipal: remainingPrincipal,
-                    housingFundBalance: currentHousingFundBalance
+                    housingFundBalance: currentHousingFundBalance,
+                    hfPayment: hfData.payment,
+                    hfPrincipal: hfData.principal,
+                    hfInterest: hfData.interest,
+                    hfRemaining: hfData.remainingPrincipal,
+                    cmPayment: cmData.payment,
+                    cmPrincipal: cmData.principal,
+                    cmInterest: cmData.interest,
+                    cmRemaining: cmData.remainingPrincipal
                 });
             }
             
             return {
                 plan,
-                totalPayment: loanAmount + totalInterest,
+                totalPayment: totalLoanAmount + totalInterest,
                 totalInterest: totalInterest,
-                monthlyPayment: plan[0].payment // 首月还款金额
+                monthlyPayment: plan[0] ? plan[0].payment : 0,
+                hfTotalInterest: hfResult.totalInterest,
+                cmTotalInterest: cmResult.totalInterest
             };
         }
         
@@ -1729,6 +1932,18 @@ function renderAllData(tableId, data, paginationId) {
         
         // 页面加载后初始化事件监听和计算
         document.addEventListener('DOMContentLoaded', function() {
+            // 贷款类型切换事件
+            document.getElementById('loan-type').addEventListener('change', function() {
+                updateLoanTypeDisplay();
+            });
+            
+            // 贷款金额输入事件（更新总额显示）
+            document.getElementById('housing-fund-amount').addEventListener('input', updateTotalLoanDisplay);
+            document.getElementById('commercial-amount').addEventListener('input', updateTotalLoanDisplay);
+            
+            // 初始化贷款类型显示
+            updateLoanTypeDisplay();
+            
             // 计算按钮点击事件
             document.getElementById('calculate-btn').addEventListener('click', calculateLoan);
             
