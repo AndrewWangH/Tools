@@ -337,9 +337,9 @@
                 <div class="form-group">
                     <label for="loan-type">贷款类型</label>
                     <select id="loan-type">
-                        <option value="housing-fund">纯公积金贷款</option>
+                        <option value="housing-fund"selected>纯公积金贷款</option>
                         <option value="commercial">纯商业贷款</option>
-                        <option value="combined" selected>组合贷款</option>
+                        <option value="combined" >组合贷款</option>
                     </select>
                 </div>
                 
@@ -348,7 +348,7 @@
                     <h4 style="margin: 0 0 10px 0; color: #2980b9;">公积金贷款</h4>
                     <div class="form-group">
                         <label for="housing-fund-amount">贷款金额(元)</label>
-                        <input type="number" id="housing-fund-amount" value="700000" min="0">
+                        <input type="number" id="housing-fund-amount" value="1300000" min="0">
                     </div>
                     <div class="form-group">
                         <label for="housing-fund-term">贷款期限(年)</label>
@@ -356,7 +356,7 @@
                     </div>
                     <div class="form-group">
                         <label for="housing-fund-rate">年利率(%)</label>
-                        <input type="number" id="housing-fund-rate" value="2.85" min="0.1" step="0.01" max="20">
+                        <input type="number" id="housing-fund-rate" value="2.6" min="0.1" step="0.01" max="20">
                     </div>
                 </div>
                 
@@ -373,7 +373,7 @@
                     </div>
                     <div class="form-group">
                         <label for="commercial-rate">年利率(%)</label>
-                        <input type="number" id="commercial-rate" value="3.45" min="0.1" step="0.01" max="20">
+                        <input type="number" id="commercial-rate" value="3.1" min="0.1" step="0.01" max="20">
                     </div>
                 </div>
                 
@@ -750,6 +750,115 @@
             };
         }
         
+        // 提前还款后重新计算还款计划（简化版，用于单一贷款重算）
+        function recalculateAfterPrepayment(remainingPrincipal, months, monthlyRate, housingFundBalance, monthlyHousingFund) {
+            if (remainingPrincipal <= 0 || months <= 0) {
+                return { plan: [], totalInterest: 0, monthlyPayment: 0 };
+            }
+            
+            const monthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+            
+            let plan = [];
+            let currentPrincipal = remainingPrincipal;
+            let totalInterest = 0;
+            let currentHousingFundBalance = housingFundBalance || 0;
+            
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            for (let i = 1; i <= months; i++) {
+                const paymentDate = new Date(currentYear, currentMonth + i, 1);
+                const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                
+                // 每月先增加公积金余额
+                currentHousingFundBalance += (monthlyHousingFund || 0);
+                
+                const interest = currentPrincipal * monthlyRate;
+                const principal = monthlyPayment - interest;
+                currentPrincipal -= principal;
+                if (currentPrincipal < 0.01) currentPrincipal = 0;
+                totalInterest += interest;
+                
+                // 计算公积金冲抵
+                let usedHousingFund = 0;
+                if (monthlyPayment > 0 && currentHousingFundBalance > 0) {
+                    usedHousingFund = Math.min(currentHousingFundBalance, monthlyPayment);
+                    currentHousingFundBalance -= usedHousingFund;
+                }
+                
+                const actualPayment = Math.max(0, monthlyPayment - usedHousingFund);
+                
+                plan.push({
+                    month: i,
+                    date: dateStr,
+                    payment: monthlyPayment,
+                    principal: principal,
+                    interest: interest,
+                    actualPayment: actualPayment,
+                    remainingPrincipal: currentPrincipal,
+                    housingFundBalance: currentHousingFundBalance
+                });
+            }
+            
+            return { plan, totalInterest, monthlyPayment };
+        }
+        
+        // 提前还款后重新计算还款计划（等额本金版本）
+        function recalculateAfterPrepaymentEqualPrincipal(remainingPrincipal, months, monthlyRate, housingFundBalance, monthlyHousingFund) {
+            if (remainingPrincipal <= 0 || months <= 0) {
+                return { plan: [], totalInterest: 0, monthlyPrincipal: 0 };
+            }
+            
+            const monthlyPrincipal = remainingPrincipal / months;
+            
+            let plan = [];
+            let currentPrincipal = remainingPrincipal;
+            let totalInterest = 0;
+            let currentHousingFundBalance = housingFundBalance || 0;
+            
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            for (let i = 1; i <= months; i++) {
+                const paymentDate = new Date(currentYear, currentMonth + i, 1);
+                const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                
+                // 每月先增加公积金余额
+                currentHousingFundBalance += (monthlyHousingFund || 0);
+                
+                const interest = currentPrincipal * monthlyRate;
+                const principal = Math.min(monthlyPrincipal, currentPrincipal);
+                const payment = principal + interest;
+                currentPrincipal -= principal;
+                if (currentPrincipal < 0.01) currentPrincipal = 0;
+                totalInterest += interest;
+                
+                // 计算公积金冲抵
+                let usedHousingFund = 0;
+                if (payment > 0 && currentHousingFundBalance > 0) {
+                    usedHousingFund = Math.min(currentHousingFundBalance, payment);
+                    currentHousingFundBalance -= usedHousingFund;
+                }
+                
+                const actualPayment = Math.max(0, payment - usedHousingFund);
+                
+                plan.push({
+                    month: i,
+                    date: dateStr,
+                    payment: payment,
+                    principal: principal,
+                    interest: interest,
+                    actualPayment: actualPayment,
+                    remainingPrincipal: currentPrincipal,
+                    housingFundBalance: currentHousingFundBalance
+                });
+            }
+            
+            return { plan, totalInterest, monthlyPrincipal };
+        }
+        
         // 计算单笔贷款的等额本息还款计划（内部使用）
         function calculateSingleLoanEqualPayment(loanAmount, months, monthlyRate) {
             if (loanAmount <= 0 || months <= 0) {
@@ -979,18 +1088,8 @@
             const prepaymentAmount = parseFloat(document.getElementById('prepayment-amount').value);
             const reduceTermOption = document.getElementById('reduce-term').checked;
             
-            // 获取当前被选中的贷款方式
-            const method = document.querySelector('.tab.active').dataset.tab;
-            
-            let originalPlan;
-            if (method === 'equal-payment' || method === 'summary' || method === 'charts') {
-                originalPlan = [...equalPaymentPlan]; // 使用等额本息计划
-            } else if (method === 'equal-principal') {
-                originalPlan = [...equalPrincipalPlan]; // 使用等额本金计划
-            } else {
-                // 如果是在提前还款页面，默认使用等额本息
-                originalPlan = [...equalPaymentPlan];
-            }
+            // 单次提前还款固定使用等额本金方式
+            let originalPlan = [...equalPrincipalPlan];
             
             // 检查输入是否有效
             if (prepaymentMonth < 1 || prepaymentMonth > params.months) {
@@ -1034,165 +1133,66 @@
             let newRemainingMonths;
             let newMonthlyPayment;
             
-            // 根据选择计算新的还款计划
+            // 根据选择计算新的还款计划（等额本金方式）
+            const monthlyRate = params.monthlyRate;
+            
             if (reduceTermOption) {
-                // 缩短贷款期限，保持月供不变（等额本息）或变化率不变（等额本金）
-                if (method === 'equal-payment' || method === 'summary' || method === 'charts' || method === 'prepayment') {
-                    // 等额本息情况下，计算新的期限
-                    const monthlyRate = params.monthlyRate;
-                    newMonthlyPayment = originalPlan[0].payment; // 保持月供不变
+                // 缩短贷款期限，保持每月本金不变
+                const monthlyPrincipal = originalPlan[0].principal; // 原始每月本金
+                newRemainingMonths = Math.ceil(remainingPrincipal / monthlyPrincipal);
+                
+                // 使用等额本金方式重新计算剩余还款计划
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
+                const result = recalculateAfterPrepaymentEqualPrincipal(
+                    remainingPrincipal, 
+                    newRemainingMonths, 
+                    monthlyRate, 
+                    currentHousingFundBalance, 
+                    params.monthlyHousingFund
+                );
+                const newPlan = result.plan;
+                
+                // 调整新计划的月份编号和日期
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = prepaymentMonth + i + 1;
                     
-                    // 计算新的期限
-                    newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / (newMonthlyPayment - remainingPrincipal * monthlyRate)) / Math.log(1 + monthlyRate));
-                    
-                    // 使用计算得到的新期限重新计算每月还款
-                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths, housingFundBalance: paidPortion[paidPortion.length - 1].housingFundBalance };
-                    const newPlan = calculateEqualPayment(tempParams).plan;
-                    
-                    // 调整新计划的月份编号和日期
-                    for (let i = 0; i < newPlan.length; i++) {
-                        newPlan[i].month = prepaymentMonth + i;
-                        
-                        // 计算还款日期
-                        const now = new Date();
-                        const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
-                        const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        newPlan[i].date = dateStr;
-                    }
-                    
-                    // 合并两部分还款计划
-                    prepaymentPlan = [...paidPortion, ...newPlan];
-                } else {
-                    // 等额本金情况
-                    const monthlyPrincipal = originalPlan[0].principal; // 原始每月本金
-                    newRemainingMonths = Math.ceil(remainingPrincipal / monthlyPrincipal);
-                    
-                    // 重新计算剩余部分的等额本金还款计划
-                    const newPlan = [];
-                    let tempRemainingPrincipal = remainingPrincipal;
-                    
-                    // 获取上一期的公积金余额
-                    let currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance;
-                    
-                    for (let i = 0; i < newRemainingMonths; i++) {
-                        const month = prepaymentMonth + i;
-                        const interest = tempRemainingPrincipal * params.monthlyRate;
-                        const principal = Math.min(monthlyPrincipal, tempRemainingPrincipal);
-                        const payment = principal + interest;
-                        
-                        tempRemainingPrincipal -= principal;
-                        if (tempRemainingPrincipal < 0.01) tempRemainingPrincipal = 0;
-                        
-                        // 计算还款日期
-                        const now = new Date();
-                        const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
-                        const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        
-                        // 每月增加公积金
-                        currentHousingFundBalance += params.monthlyHousingFund;
-                        
-                        // 计算使用的公积金和实际支付
-                        let usedHousingFund = 0;
-                        let actualPayment = payment;
-                        if (payment > 0 && currentHousingFundBalance > 0) {
-                            usedHousingFund = Math.min(currentHousingFundBalance, payment);
-                            currentHousingFundBalance -= usedHousingFund;
-                            actualPayment = payment - usedHousingFund;
-                        }
-                        
-                        newPlan.push({
-                            month: month,
-                            date: dateStr,
-                            payment: payment,
-                            principal: principal,
-                            interest: interest,
-                            housingFund: usedHousingFund,
-                            actualPayment: actualPayment,
-                            remainingPrincipal: tempRemainingPrincipal,
-                            housingFundBalance: currentHousingFundBalance
-                        });
-                    }
-                    
-                    // 合并两部分还款计划
-                    prepaymentPlan = [...paidPortion, ...newPlan];
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
                 }
+                
+                // 合并两部分还款计划
+                prepaymentPlan = [...paidPortion, ...newPlan];
             } else {
-                // 减少月供，保持还款期限不变
+                // 减少月供，保持还款期限不变（等额本金方式）
                 const remainingMonths = params.months - prepaymentMonth;
                 
-                if (method === 'equal-payment' || method === 'summary' || method === 'charts' || method === 'prepayment') {
-                    // 等额本息情况
-                    const monthlyRate = params.monthlyRate;
-                    newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+                // 使用等额本金方式重新计算
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
+                const result = recalculateAfterPrepaymentEqualPrincipal(
+                    remainingPrincipal, 
+                    remainingMonths, 
+                    monthlyRate, 
+                    currentHousingFundBalance, 
+                    params.monthlyHousingFund
+                );
+                const newPlan = result.plan;
+                
+                // 调整新计划的月份编号和日期
+                for (let i = 0; i < newPlan.length; i++) {
+                    newPlan[i].month = prepaymentMonth + i + 1;
                     
-                    // 使用剩余金额和剩余期限重新计算每月还款
-                    const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths, housingFundBalance: paidPortion[paidPortion.length - 1].housingFundBalance };
-                    const newPlan = calculateEqualPayment(tempParams).plan;
-                    
-                    // 调整新计划的月份编号和日期
-                    for (let i = 0; i < newPlan.length; i++) {
-                        newPlan[i].month = prepaymentMonth + i + 1;
-                        
-                        // 计算还款日期
-                        const now = new Date();
-                        const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
-                        const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        newPlan[i].date = dateStr;
-                    }
-                    
-                    // 合并两部分还款计划
-                    prepaymentPlan = [...paidPortion, ...newPlan];
-                } else {
-                    // 等额本金情况
-                    const newMonthlyPrincipal = remainingPrincipal / remainingMonths;
-                    const newPlan = [];
-                    let tempRemainingPrincipal = remainingPrincipal;
-                    
-                    // 获取上一期的公积金余额
-                    let currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance;
-                    
-                    for (let i = 0; i < remainingMonths; i++) {
-                        const month = prepaymentMonth + i + 1;
-                        const interest = tempRemainingPrincipal * params.monthlyRate;
-                        const principal = newMonthlyPrincipal;
-                        const payment = principal + interest;
-                        
-                        tempRemainingPrincipal -= principal;
-                        if (tempRemainingPrincipal < 0.01) tempRemainingPrincipal = 0;
-                        
-                        // 计算还款日期
-                        const now = new Date();
-                        const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
-                        const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        
-                        // 每月增加公积金
-                        currentHousingFundBalance += params.monthlyHousingFund;
-                        
-                        // 计算使用的公积金和实际支付
-                        let usedHousingFund = 0;
-                        let actualPayment = payment;
-                        if (payment > 0 && currentHousingFundBalance > 0) {
-                            usedHousingFund = Math.min(currentHousingFundBalance, payment);
-                            currentHousingFundBalance -= usedHousingFund;
-                            actualPayment = payment - usedHousingFund;
-                        }
-                        
-                        newPlan.push({
-                            month: month,
-                            date: dateStr,
-                            payment: payment,
-                            principal: principal,
-                            interest: interest,
-                            housingFund: usedHousingFund,
-                            actualPayment: actualPayment,
-                            remainingPrincipal: tempRemainingPrincipal,
-                            housingFundBalance: currentHousingFundBalance
-                        });
-                    }
-                    
-                    // 合并两部分还款计划
-                    prepaymentPlan = [...paidPortion, ...newPlan];
+                    // 计算还款日期
+                    const now = new Date();
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                    newPlan[i].date = dateStr;
                 }
+                
+                // 合并两部分还款计划
+                prepaymentPlan = [...paidPortion, ...newPlan];
             }
             
             displayPrepaymentResults(prepaymentPlan, originalPlan);
@@ -2094,8 +2094,15 @@ function renderAllData(tableId, data, paginationId) {
                 }
                 
                 // 使用计算得到的新期限重新计算每月还款
-                const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
-                const newPlan = calculateEqualPayment(tempParams).plan;
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
+                const result = recalculateAfterPrepayment(
+                    remainingPrincipal, 
+                    newRemainingMonths, 
+                    monthlyRate, 
+                    currentHousingFundBalance, 
+                    params.monthlyHousingFund
+                );
+                const newPlan = result.plan;
                 
                 // 调整新计划的月份编号和日期
                 for (let i = 0; i < newPlan.length; i++) {
@@ -2119,8 +2126,15 @@ function renderAllData(tableId, data, paginationId) {
                 newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
                 
                 // 使用剩余金额和剩余期限重新计算每月还款
-                const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths };
-                const newPlan = calculateEqualPayment(tempParams).plan;
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
+                const result = recalculateAfterPrepayment(
+                    remainingPrincipal, 
+                    remainingMonths, 
+                    monthlyRate, 
+                    currentHousingFundBalance, 
+                    params.monthlyHousingFund
+                );
+                const newPlan = result.plan;
                 
                 // 调整新计划的月份编号和日期
                 for (let i = 0; i < newPlan.length; i++) {
@@ -2146,9 +2160,12 @@ function renderAllData(tableId, data, paginationId) {
             }
             
             const params = getLoanParams();
-            // 使用深拷贝避免污染原始还款计划数据
-            let currentPlan = equalPaymentPlan.map(item => ({...item}));
+            // 使用深拷贝避免污染原始还款计划数据（固定使用等额本金计划）
+            let currentPlan = equalPrincipalPlan.map(item => ({...item}));
             const allPrepayments = [...prepaymentList].sort((a, b) => a.month - b.month);
+            
+            // 保存原始贷款的每月本金（用于缩短期限时保持不变）
+            const originalMonthlyPrincipal = equalPrincipalPlan.length > 0 ? equalPrincipalPlan[0].principal : 0;
             
             for (let i = 0; i < allPrepayments.length; i++) {
                 const prepay = allPrepayments[i];
@@ -2170,8 +2187,8 @@ function renderAllData(tableId, data, paginationId) {
                     return;
                 }
                 
-                // 计算当前提前还款的效果（使用数组索引+1，因为函数内部用的是月份位置）
-                const newPlan = calculateSinglePrepaymentByIndex(currentPlan, planIndex, prepay.amount, prepay.option, params, targetMonth);
+                // 计算当前提前还款的效果，传入原始每月本金
+                const newPlan = calculateSinglePrepaymentByIndex(currentPlan, planIndex, prepay.amount, prepay.option, params, targetMonth, originalMonthlyPrincipal);
                 
                 // 记录提前还款信息到计划中（通过month属性查找）
                 const noteIndex = newPlan.findIndex(item => item.month === targetMonth);
@@ -2183,11 +2200,11 @@ function renderAllData(tableId, data, paginationId) {
             }
             
             multiplePrepaymentPlan = currentPlan;
-            displayMultiplePrepaymentResults(multiplePrepaymentPlan, equalPaymentPlan, allPrepayments);
+            displayMultiplePrepaymentResults(multiplePrepaymentPlan, equalPrincipalPlan, allPrepayments);
         }
         
         // 根据数组索引计算单次提前还款（新版本）
-        function calculateSinglePrepaymentByIndex(originalPlan, planIndex, prepaymentAmount, option, params, originalMonth) {
+        function calculateSinglePrepaymentByIndex(originalPlan, planIndex, prepaymentAmount, option, params, originalMonth, originalMonthlyPrincipal) {
             // 提取已经还款的部分（使用深拷贝避免修改原始数据）
             const paidPortion = originalPlan.slice(0, planIndex + 1).map(item => ({...item}));
             
@@ -2216,55 +2233,133 @@ function renderAllData(tableId, data, paginationId) {
             const monthlyRate = params.monthlyRate;
             
             if (option === 'reduce-term') {
-                // 缩短贷款期限，保持月供不变
-                newMonthlyPayment = originalPlan[planIndex].payment;
-                
-                // 计算新的期限
-                const denominator = newMonthlyPayment - remainingPrincipal * monthlyRate;
-                if (denominator <= 0) {
-                    newRemainingMonths = currentPlanRemainingMonths;
+                // 缩短贷款期限，保持每月本金不变（等额本金方式）
+                // 使用传入的原始每月本金（如果有的话），否则使用当前计划的本金
+                let monthlyPrincipal;
+                if (originalMonthlyPrincipal && originalMonthlyPrincipal > 0) {
+                    // 使用原始贷款的每月本金
+                    monthlyPrincipal = originalMonthlyPrincipal;
+                } else if (planIndex > 0) {
+                    // 取提前还款前一期的本金作为参考
+                    monthlyPrincipal = originalPlan[planIndex].principal;
                 } else {
-                    newRemainingMonths = Math.ceil(Math.log(newMonthlyPayment / denominator) / Math.log(1 + monthlyRate));
+                    monthlyPrincipal = originalPlan[0].principal;
                 }
                 
-                // 使用计算得到的新期限重新计算每月还款
-                const tempParams = { ...params, loanAmount: remainingPrincipal, months: newRemainingMonths };
-                const newPlan = calculateEqualPayment(tempParams).plan;
+                // 确保monthlyPrincipal有效
+                if (monthlyPrincipal <= 0) {
+                    monthlyPrincipal = remainingPrincipal / Math.max(currentPlanRemainingMonths, 1);
+                }
                 
-                // 调整新计划的月份编号和日期，保持原始月份连续
-                for (let i = 0; i < newPlan.length; i++) {
-                    newPlan[i].month = originalMonth + i + 1;
+                newRemainingMonths = Math.ceil(remainingPrincipal / monthlyPrincipal);
+                if (newRemainingMonths <= 0) newRemainingMonths = 1;
+                
+                // 使用等额本金方式重新计算剩余还款计划
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
+                
+                // 直接在这里生成等额本金还款计划，确保数据一致性
+                // 注意：缩短期限时，每月本金应该保持不变
+                const newPlan = [];
+                let tempRemainingPrincipal = remainingPrincipal;
+                let tempHousingFundBalance = currentHousingFundBalance;
+                // 使用固定的每月本金（而不是重新计算）
+                const fixedMonthlyPrincipal = monthlyPrincipal;
+                
+                for (let i = 0; i < newRemainingMonths; i++) {
+                    const month = originalMonth + i + 1;
                     
                     // 计算还款日期
                     const now = new Date();
-                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
                     const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                    newPlan[i].date = dateStr;
+                    
+                    // 每月先增加公积金余额
+                    tempHousingFundBalance += (params.monthlyHousingFund || 0);
+                    
+                    const interest = tempRemainingPrincipal * monthlyRate;
+                    // 最后一期可能本金不足一个月的标准本金
+                    const principal = Math.min(fixedMonthlyPrincipal, tempRemainingPrincipal);
+                    const payment = principal + interest;
+                    
+                    tempRemainingPrincipal -= principal;
+                    if (tempRemainingPrincipal < 0.01) tempRemainingPrincipal = 0;
+                    
+                    // 计算公积金冲抵
+                    let usedHousingFund = 0;
+                    if (payment > 0 && tempHousingFundBalance > 0) {
+                        usedHousingFund = Math.min(tempHousingFundBalance, payment);
+                        tempHousingFundBalance -= usedHousingFund;
+                    }
+                    
+                    const actualPayment = Math.max(0, payment - usedHousingFund);
+                    
+                    newPlan.push({
+                        month: month,
+                        date: dateStr,
+                        payment: payment,
+                        principal: principal,
+                        interest: interest,
+                        actualPayment: actualPayment,
+                        remainingPrincipal: tempRemainingPrincipal,
+                        housingFundBalance: tempHousingFundBalance
+                    });
                 }
                 
                 return [...paidPortion, ...newPlan];
             } else {
-                // 减少月供，保持还款期限不变
+                // 减少月供，保持还款期限不变（等额本金方式）
                 const remainingMonths = currentPlanRemainingMonths;
                 
                 if (remainingMonths <= 0) {
                     return paidPortion;
                 }
                 
-                newMonthlyPayment = remainingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, remainingMonths) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+                // 使用等额本金方式重新计算
+                const currentHousingFundBalance = paidPortion[paidPortion.length - 1].housingFundBalance || 0;
                 
-                const tempParams = { ...params, loanAmount: remainingPrincipal, months: remainingMonths };
-                const newPlan = calculateEqualPayment(tempParams).plan;
+                // 直接在这里生成等额本金还款计划，确保数据一致性
+                const newPlan = [];
+                let tempRemainingPrincipal = remainingPrincipal;
+                let tempHousingFundBalance = currentHousingFundBalance;
+                const newMonthlyPrincipal = remainingPrincipal / remainingMonths;
                 
-                // 调整新计划的月份编号和日期，保持原始月份连续
-                for (let i = 0; i < newPlan.length; i++) {
-                    newPlan[i].month = originalMonth + i + 1;
+                for (let i = 0; i < remainingMonths; i++) {
+                    const month = originalMonth + i + 1;
                     
                     // 计算还款日期
                     const now = new Date();
-                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + newPlan[i].month, 1);
+                    const paymentDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
                     const dateStr = `${paymentDate.getFullYear()}-${(paymentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                    newPlan[i].date = dateStr;
+                    
+                    // 每月先增加公积金余额
+                    tempHousingFundBalance += (params.monthlyHousingFund || 0);
+                    
+                    const interest = tempRemainingPrincipal * monthlyRate;
+                    const principal = Math.min(newMonthlyPrincipal, tempRemainingPrincipal);
+                    const payment = principal + interest;
+                    
+                    tempRemainingPrincipal -= principal;
+                    if (tempRemainingPrincipal < 0.01) tempRemainingPrincipal = 0;
+                    
+                    // 计算公积金冲抵
+                    let usedHousingFund = 0;
+                    if (payment > 0 && tempHousingFundBalance > 0) {
+                        usedHousingFund = Math.min(tempHousingFundBalance, payment);
+                        tempHousingFundBalance -= usedHousingFund;
+                    }
+                    
+                    const actualPayment = Math.max(0, payment - usedHousingFund);
+                    
+                    newPlan.push({
+                        month: month,
+                        date: dateStr,
+                        payment: payment,
+                        principal: principal,
+                        interest: interest,
+                        actualPayment: actualPayment,
+                        remainingPrincipal: tempRemainingPrincipal,
+                        housingFundBalance: tempHousingFundBalance
+                    });
                 }
                 
                 return [...paidPortion, ...newPlan];
