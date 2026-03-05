@@ -1,0 +1,14 @@
+# 个人财务管理系统依赖
+
+# Flask框架
+Flask>=3.0.0
+
+# Flask扩展
+Flask-SQLAlchemy>=3.1.1
+Flask-CORS>=4.0.0
+
+# JWT认证
+PyJWT>=2.8.0
+
+# 密码加密（Flask自带Werkzeug）
+Werkzeug>=3.0.0
